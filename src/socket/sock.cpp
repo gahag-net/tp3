@@ -69,25 +69,25 @@ tp3::socket::sock& tp3::socket::sock::operator=(sock&& other) {
 }
 
 
-bool tp3::socket::sock::deleted() const {
+bool tp3::socket::sock::deleted() const noexcept {
 	return this->fd == -1;
 }
 
 
-int tp3::socket::sock::descriptor() const {
+int tp3::socket::sock::descriptor() const noexcept {
 	return this->fd;
 }
 
-const tp3::socket::addr& tp3::socket::sock::address() const {
+const tp3::socket::addr& tp3::socket::sock::address() const noexcept {
 	return this->addr;
 }
 
 
-bool tp3::socket::sock::is_tcp() const {
+bool tp3::socket::sock::is_tcp() const noexcept {
 	return this->addr->ai_socktype == SOCK_STREAM;
 }
 
-bool tp3::socket::sock::is_udp() const {
+bool tp3::socket::sock::is_udp() const noexcept {
 	return this->addr->ai_socktype == SOCK_DGRAM;
 }
 

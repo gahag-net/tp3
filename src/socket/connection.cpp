@@ -31,16 +31,31 @@ tp3::socket::connection::~connection() {
 }
 
 
-std::unique_ptr<uint8_t[]> tp3::socket::connection::recv(std::size_t& size) const {
-	auto buffer = std::make_unique<uint8_t[]>(size);
-
+bool tp3::socket::connection::is_closed() const {
 	// http://man7.org/linux/man-pages/man2/recv.2.html
-	size = ::recv(this->fd, buffer.get(), size, 0);
+	uint8_t dump;
+
+	auto size = ::recv(
+		this->fd,
+		&dump,
+		1,
+		MSG_PEEK
+	);
 
 	if (size < 0)
 		throw std::system_error(errno, std::generic_category());
 
-	return buffer;
+	return size == 0;
+}
+
+std::size_t tp3::socket::connection::recv(uint8_t buffer[], std::size_t size) const {
+	// http://man7.org/linux/man-pages/man2/recv.2.html
+	size = ::recv(this->fd, buffer, size, 0);
+
+	if (size < 0)
+		throw std::system_error(errno, std::generic_category());
+
+	return size;
 }
 
 

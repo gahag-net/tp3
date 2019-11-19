@@ -18,7 +18,9 @@ namespace tp3::socket {
 		connection(const server&);
 		~connection();
 
-		std::unique_ptr<uint8_t[]> recv(std::size_t&) const;
+		bool is_closed() const;
+
+		std::size_t recv(uint8_t[], std::size_t) const;
 		std::size_t send(const uint8_t[], std::size_t) const;
 	};
 }

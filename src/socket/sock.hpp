@@ -13,7 +13,7 @@ namespace tp3::socket {
 		sock(int fd);
 		sock(int fd, class addr&& addr);
 
-		bool deleted() const;
+		bool deleted() const noexcept;
 
 	public:
 		// Construct with an attach function.
@@ -26,11 +26,11 @@ namespace tp3::socket {
 		sock& operator=(const sock&) = delete;
 		sock& operator=(sock&&);
 
-		int descriptor() const;
-		const class addr& address() const;
+		int descriptor() const noexcept;
+		const class addr& address() const noexcept;
 
-		bool is_tcp() const;
-		bool is_udp() const;
+		bool is_tcp() const noexcept;
+		bool is_udp() const noexcept;
 
 
 		// Common attach functions:
