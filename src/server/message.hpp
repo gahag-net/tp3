@@ -7,6 +7,7 @@
 #include <optional>
 
 #include <util/boxed_array.hpp>
+#include <util/overload.hpp>
 
 
 namespace tp3::server::message {
@@ -20,7 +21,7 @@ namespace tp3::server::message {
 	};
 
 	constexpr auto token_value(token tok) noexcept {
-    return static_cast<
+		return static_cast<
 			typename std::underlying_type<token>::type
 		>(tok);
 	}
@@ -32,13 +33,15 @@ namespace tp3::server::message {
 
 	class list_users {
 	public:
+		static constexpr std::size_t min_size = 3; // minimum message size.
+
 		list_users(const list_users&) = delete;
 		list_users(list_users&& other) noexcept = default;
 		list_users() noexcept = default;
 
 		template<typename ForwardIterator>
-		static std::optional<list_users> from(ForwardIterator& begin, ForwardIterator end) {
-			if (std::distance(begin, end) < 3) // minimum message size is 3.
+		static std::optional<list_users> decode(ForwardIterator& begin, ForwardIterator end) {
+			if (std::distance(begin, end) < list_users::min_size)
 				return {};
 
 			if (*begin != token_value(token::heading))
@@ -63,6 +66,8 @@ namespace tp3::server::message {
 
 	class broadcast {
 	public:
+		static constexpr std::size_t min_size = 3; // minimum message size.
+
 		boxed_array<uint8_t> text;
 
 
@@ -72,8 +77,8 @@ namespace tp3::server::message {
 			: text(std::move(text)) { }
 
 		template<typename ForwardIterator>
-		static std::optional<broadcast> from(ForwardIterator& begin, ForwardIterator end) {
-			if (std::distance(begin, end) < 3) //  items will be read below 3.
+		static std::optional<broadcast> decode(ForwardIterator& begin, ForwardIterator end) {
+			if (std::distance(begin, end) < broadcast::min_size)
 				return {};
 
 			if (*begin != token_value(token::heading))
@@ -106,6 +111,8 @@ namespace tp3::server::message {
 
 	class unicast {
 	public:
+		static constexpr std::size_t min_size = 4; // minimum message size.
+
 		boxed_array<uint8_t> target;
 		boxed_array<uint8_t> text;
 
@@ -116,8 +123,8 @@ namespace tp3::server::message {
 			  text(std::move(text)) { }
 
 		template<typename ForwardIterator>
-		static std::optional<unicast> from(ForwardIterator& begin, ForwardIterator end) {
-			if (std::distance(begin, end) < 4) // minimum message size is 4.
+		static std::optional<unicast> decode(ForwardIterator& begin, ForwardIterator end) {
+			if (std::distance(begin, end) < unicast::min_size)
 				return {};
 
 			if (*begin != token_value(token::heading))
@@ -160,29 +167,118 @@ namespace tp3::server::message {
 	};
 
 
+	static constexpr std::size_t min_size = [] { // minimum message size.
+		const auto messages = {
+			list_users::min_size,
+			broadcast::min_size,
+			unicast::min_size
+		};
+
+		return *std::max_element(
+			messages.begin(),
+			messages.end()
+		);
+	}();
+
 	using variant = std::variant<
 		list_users,
 		broadcast,
 		unicast
 	>;
 
+
 	template<typename ForwardIterator>
-	std::optional<variant> parse(ForwardIterator& begin, ForwardIterator end) {
-		ForwardIterator _begin = begin;
+	std::optional<variant> decode(ForwardIterator& begin, ForwardIterator end) {
+		const ForwardIterator _begin = begin;
 
-		if (auto message = list_users::from(begin, end))
+		if (const auto message = list_users::decode(begin, end))
 			return message;
 
 		begin = _begin; // rollback
 
-		if (auto message = broadcast::from(begin, end))
+		if (const auto message = broadcast::decode(begin, end))
 			return message;
 
 		begin = _begin; // rollback
 
-		if (auto message = unicast::from(begin, end))
+		if (const auto message = unicast::decode(begin, end))
 			return message;
 
 		return {};
+	}
+
+
+	boxed_array<uint8_t> encode(variant&& message) {
+		return std::visit(
+			tp3::util::overload {
+				[](const list_users& msg) -> boxed_array<uint8_t> {
+					const std::size_t size = 3; // heading + list_users + end
+
+					boxed_array<uint8_t> packet(size);
+
+					auto packet_it = packet.begin();
+
+					*packet_it++ = token_value(token::heading);
+					*packet_it++ = token_value(token::list_users);
+					*packet_it++ = token_value(token::end);
+
+					return packet;
+				},
+
+				[](const broadcast& msg) -> boxed_array<uint8_t> {
+					const std::size_t size = 3 // heading + broadcast + end
+					                 + msg.text.size();
+
+					boxed_array<uint8_t> packet(size);
+
+					auto packet_it = packet.begin();
+
+					*packet_it++ = token_value(token::heading);
+					*packet_it++ = token_value(token::broadcast);
+
+					packet_it = std::copy(
+						msg.text.begin(),
+						msg.text.end(),
+						packet_it
+					);
+
+					*packet_it++ = token_value(token::end);
+
+					return packet;
+				},
+
+				[](const unicast& msg) -> boxed_array<uint8_t> {
+					const std::size_t size = 4 // heading + unicast + text + end
+					                       + msg.target.size()
+					                       + msg.text.size();
+
+					boxed_array<uint8_t> packet(size);
+
+					auto packet_it = packet.begin();
+
+					*packet_it++ = token_value(token::heading);
+					*packet_it++ = token_value(token::unicast);
+
+					packet_it = std::copy(
+						msg.target.begin(),
+						msg.target.end(),
+						packet_it
+					);
+
+					*packet_it++ = token_value(token::text);
+
+					packet_it = std::copy(
+						msg.text.begin(),
+						msg.text.end(),
+						packet_it
+					);
+
+					*packet_it++ = token_value(token::end);
+
+					return packet;
+				}
+			},
+			message
+		);
 	}
 }
