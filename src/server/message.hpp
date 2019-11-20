@@ -39,6 +39,10 @@ namespace tp3::server::message {
 		list_users(list_users&& other) noexcept = default;
 		list_users() noexcept = default;
 
+		list_users& operator=(const list_users&) = delete;
+		list_users& operator=(list_users&&) = default;
+
+
 		template<typename ForwardIterator>
 		static std::optional<list_users> decode(ForwardIterator& begin, ForwardIterator end) {
 			if (std::distance(begin, end) < list_users::min_size)
@@ -75,6 +79,10 @@ namespace tp3::server::message {
 		broadcast(broadcast&& other) noexcept = default;
 		broadcast(boxed_array<uint8_t>&& text)
 			: text(std::move(text)) { }
+
+		broadcast& operator=(const broadcast&) = delete;
+		broadcast& operator=(broadcast&&) = default;
+
 
 		template<typename ForwardIterator>
 		static std::optional<broadcast> decode(ForwardIterator& begin, ForwardIterator end) {
@@ -121,6 +129,10 @@ namespace tp3::server::message {
 		unicast(boxed_array<uint8_t>&& target, boxed_array<uint8_t>&& text)
 			: target(std::move(target)),
 			  text(std::move(text)) { }
+
+		unicast& operator=(const unicast&) = delete;
+		unicast& operator=(unicast&&) = default;
+
 
 		template<typename ForwardIterator>
 		static std::optional<unicast> decode(ForwardIterator& begin, ForwardIterator end) {
@@ -191,18 +203,18 @@ namespace tp3::server::message {
 	std::optional<variant> decode(ForwardIterator& begin, ForwardIterator end) {
 		const ForwardIterator _begin = begin;
 
-		if (const auto message = list_users::decode(begin, end))
-			return message;
+		if (auto message = list_users::decode(begin, end))
+			return std::move(*message);
 
 		begin = _begin; // rollback
 
-		if (const auto message = broadcast::decode(begin, end))
-			return message;
+		if (auto message = broadcast::decode(begin, end))
+			return std::move(*message);
 
 		begin = _begin; // rollback
 
-		if (const auto message = unicast::decode(begin, end))
-			return message;
+		if (auto message = unicast::decode(begin, end))
+			return std::move(*message);
 
 		return {};
 	}

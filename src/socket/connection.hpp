@@ -16,6 +16,12 @@ namespace tp3::socket {
 		connection(class addr&&);
 		// Accept connection from TCP server.
 		connection(const server&);
+
+		connection(const connection&) = delete;
+		connection(connection&&) = default;
+		connection& operator=(const connection&) = delete;
+		connection& operator=(connection&&) = default;
+
 		~connection();
 
 		bool is_closed() const;

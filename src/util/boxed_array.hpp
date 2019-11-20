@@ -33,13 +33,22 @@ namespace tp3::util {
 			std::copy(
 				begin,
 				end,
-				this->data.get()
+				this->get()
 			);
 		}
 
-		boxed_array(const boxed_array&) = delete;
+		boxed_array(const boxed_array& other) {
+			this->_size = other._size;
+			this->data = std::make_unique<T[]>(other._size);
+
+			std::copy(
+				other.begin(),
+				other.end(),
+				this->get()
+			);
+		}
 		boxed_array(boxed_array&& other) noexcept = default;
-		boxed_array<T>& operator=(const boxed_array<T>&) = delete;
+		boxed_array<T>& operator=(const boxed_array<T>&) = default;
 		boxed_array<T>& operator=(boxed_array<T>&&) = default;
 
 
@@ -99,5 +108,30 @@ namespace tp3::util {
 		T* end() noexcept {
 			return this->begin() + this->_size;
 		}
+
+
+		bool operator==(const boxed_array& other) const {
+			return this->size() == other.size()
+			    && std::equal(
+			       	this->begin(),
+			       	this->end(),
+			       	other.begin()
+			       );
+		}
 	};
 }
+
+template<typename T>
+struct std::hash<tp3::util::boxed_array<T>> {
+	std::size_t operator()(const tp3::util::boxed_array<T>& box) const noexcept {
+		std::size_t seed = box.size();
+
+		for(const auto& e : box)
+			seed ^= std::hash<T>{}(e)
+			      + 0x9e3779b9
+			      + (seed << 6)
+			      + (seed >> 2);
+
+		return seed;
+	}
+};
