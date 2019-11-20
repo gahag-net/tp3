@@ -22,12 +22,12 @@ namespace tp3::server {
 	using boxed_array = tp3::util::boxed_array<T>;
 
 
-	template<std::size_t client_buffer_size>
+	template<std::size_t buffer_size>
 	class server {
 	protected:
 		tp3::socket::server socket;
 
-		std::vector<client<client_buffer_size>> clients;
+		std::vector<client<buffer_size>> clients;
 
 		std::vector<pollfd> poll_sockets;
 
@@ -65,7 +65,7 @@ namespace tp3::server {
 		}
 
 
-		std::vector<boxed_array<uint8_t>> list_users() {
+		std::vector<boxed_array<uint8_t>> list_users() const {
 			std::vector<boxed_array<uint8_t>> usernames;
 
 			usernames.reserve(
@@ -87,7 +87,7 @@ namespace tp3::server {
 
 		// accept new connection.
 		void accept() {
-			client<client_buffer_size> client(
+			client<buffer_size> client(
 				tp3::socket::connection(this->socket)
 			);
 
@@ -111,22 +111,46 @@ namespace tp3::server {
 		}
 
 
-		void process_client(client<client_buffer_size>& client) {
-			if (const auto message = client.read())
+		void process_client(clients_iter client) const {
+			if (auto message = client->read())
 				std::visit(
 					tp3::util::overload {
 						[&](const message::list_users&) {
-							client.send(
+							client->send(
 								tp3::client::message::users_list(
 									this->list_users()
 								)
 							);
 						},
 
-						[&](const message::broadcast&) {
+						[&](message::broadcast& msg) {
+							auto packet = tp3::client::message::encode(
+								tp3::client::message::text(
+									boxed_array<uint8_t>(client->name()),
+									std::move(msg.text)
+								)
+							);
+
+							// avoid sending message to sender:
+
+							for (auto other = this->clients.begin(); other != client; ++other)
+								other->send(packet);
+
+							for (auto other = client + 1; other != this->clients.end(); ++other)
+								other->send(packet);
 						},
 
-						[&](const message::unicast&) {
+						[&](message::unicast& msg) {
+							const auto& target = this->clients[
+								this->catalogue.at(msg.target)
+							];
+
+							target.send(
+								tp3::client::message::text(
+									boxed_array<uint8_t>(client->name()),
+									std::move(msg.text)
+								)
+							);
 						}
 					},
 					*message
@@ -167,7 +191,7 @@ namespace tp3::server {
 								this->catalogue[client->name()] = client - this->clients.begin();
 						}
 						else
-							this->process_client(*client);
+							this->process_client(client);
 					}
 
 					++socket;

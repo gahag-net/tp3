@@ -94,13 +94,13 @@ namespace tp3::client::message {
 	public:
 		static constexpr std::size_t min_size = 4; // minimum message size.
 
-		boxed_array<uint8_t> target;
+		boxed_array<uint8_t> sender;
 		boxed_array<uint8_t> msg;
 
 		text(const text&) = delete;
 		text(text&& other) noexcept = default;
-		text(boxed_array<uint8_t>&& target, boxed_array<uint8_t>&& msg) noexcept
-			: target(std::move(target)),
+		text(boxed_array<uint8_t>&& sender, boxed_array<uint8_t>&& msg) noexcept
+			: sender(std::move(sender)),
 			  msg(std::move(msg)) { }
 
 		template<typename ForwardIterator>
@@ -116,18 +116,18 @@ namespace tp3::client::message {
 			if (*begin != token_value(token::text))
 				return {};
 
-			const auto target = begin + 1;
+			const auto sender = begin + 1;
 
-			const auto target_end = std::find(
-				target,
+			const auto sender_end = std::find(
+				sender,
 				end,
 				token_value(token::text_start)
 			);
 
-			if (target_end == end)
+			if (sender_end == end)
 				return {};
 
-			const auto msg = target_end + 1;
+			const auto msg = sender_end + 1;
 
 			const auto msg_end = std::find(
 				msg,
@@ -141,7 +141,7 @@ namespace tp3::client::message {
 			begin = msg_end + 1;  // leave begin at the end of the parsed data.
 
 			return text(
-				boxed_array<uint8_t>(target, target_end),
+				boxed_array<uint8_t>(sender, sender_end),
 				boxed_array<uint8_t>(msg, msg_end)
 			);
 		}
@@ -219,7 +219,7 @@ namespace tp3::client::message {
 
 				[](const text& msg) -> boxed_array<uint8_t> {
 					const std::size_t size = 4 // heading + text + text_start + end
-					                       + msg.target.size()
+					                       + msg.sender.size()
 					                       + msg.msg.size();
 
 					boxed_array<uint8_t> packet(size);
@@ -230,8 +230,8 @@ namespace tp3::client::message {
 					*packet_it++ = token_value(token::text);
 
 					packet_it = std::copy(
-						msg.target.begin(),
-						msg.target.end(),
+						msg.sender.begin(),
+						msg.sender.end(),
 						packet_it
 					);
 

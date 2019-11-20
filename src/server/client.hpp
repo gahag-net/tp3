@@ -66,11 +66,15 @@ namespace tp3::server {
 		}
 
 
-		void send(tp3::client::message::variant&& message) {
+		void send(tp3::client::message::variant&& message) const {
 			auto packet = tp3::client::message::encode(
 				std::move(message)
 			);
 
+			this->send(packet);
+		}
+
+		void send(const tp3::util::boxed_array<uint8_t>& packet) const {
 			this->connection.send(
 				packet.get(),
 				packet.size()
