@@ -1,0 +1,7 @@
+/bin
+/obj
+/clienteTCP
+/clienteUDP
+/servidorUDP
+/servidorTCP
+.ccls-cache
