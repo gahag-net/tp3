@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+
 #include <algorithm>
 #include <cstdint>
 #include <vector>
@@ -16,15 +18,18 @@ namespace tp3::util {
 
 
 		void read(const tp3::socket::connection& connection) {
-			uint8_t* end = &*this->buffer.end();
 			const auto current_size = this->buffer.size();
-			const auto max_size = this->buffer.max_size();
 
-			this->buffer.resize(max_size);
+			if (current_size == size) // buffer is full.
+				return;
+
+			this->buffer.resize(size);
+
+			uint8_t* end = &this->buffer[current_size];
 
 			const auto added_size = connection.recv(
 				end,
-				max_size - current_size
+				size - current_size
 			);
 
 			this->buffer.resize(current_size + added_size);
@@ -70,7 +75,7 @@ namespace tp3::util {
 				auto msg_end = std::find(begin, end, end_tok);
 
 				if (msg_end == end) {
-					if (this->buffer.size() == this->buffer.max_size())
+					if (this->buffer.size() == size)
 						// buffer is full with a single message.
 						this->buffer.clear();
 
