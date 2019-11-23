@@ -31,7 +31,7 @@ namespace tp3::server {
 
 		std::vector<client<buffer_size>> clients;
 
-		std::vector<pollfd> poll_sockets;
+		std::vector<pollfd> poll_sockets; // server socket : clients sockets
 
 		std::unordered_map<
 			boxed_array<uint8_t>,
@@ -48,7 +48,8 @@ namespace tp3::server {
 		server(server&&) noexcept = default;
 
 		server(tp3::socket::addr&& address, uint32_t queue_size = 32)
-			: socket(std::move(address), queue_size) {
+			: socket(std::move(address), queue_size)
+		{
 			this->poll_sockets.emplace_back(
 				pollfd {
 					.fd = this->socket.descriptor(),
@@ -58,9 +59,11 @@ namespace tp3::server {
 		}
 
 
+		// Get a client iterator from a sockets iterator.
 		clients_iter get_client(const sockets_iter& it) {
 			auto begin = this->poll_sockets.begin();
 
+			// As the poll_sockets vector starts with the server socket, we must subtract 1.
 			const auto ix = std::distance(begin, it) - 1;
 
 			return this->clients.begin() + ix;
@@ -107,21 +110,17 @@ namespace tp3::server {
 		}
 
 
-		// accept new connection.
+		// Accept new connection.
 		void accept() {
 			std::cout << "incoming client, ";
 
-			client<buffer_size> client(
+			this->clients.emplace_back(
 				tp3::socket::connection(this->socket)
 			);
 
-			auto fd = client.descriptor();
-
-			this->clients.push_back(std::move(client));
-
-			this->poll_sockets.push_back(
+			this->poll_sockets.emplace_back(
 				pollfd {
-					.fd = fd,
+					.fd = this->clients.back().descriptor(),
 					.events = POLLIN
 				}
 			);
@@ -130,6 +129,7 @@ namespace tp3::server {
 		}
 
 
+		// Process one message from the given client.
 		void process_client(clients_iter client) {
 			if (auto message = client->read())
 				std::visit(
@@ -144,14 +144,15 @@ namespace tp3::server {
 								client->send(
 									tp3::client::message::invalid_name()
 								);
-							}
-							else {
-								client->name = std::move(msg.text);
 
-								this->catalogue[*client->name] = this->clients.size() - 1;
-
-								std::cout << "done." << std::endl;
+								return;
 							}
+
+							client->name = std::move(msg.text);
+
+							this->catalogue[*client->name] = this->clients.size() - 1;
+
+							std::cout << "done." << std::endl;
 						},
 
 						[&](const message::list_users&) {
@@ -183,11 +184,19 @@ namespace tp3::server {
 						},
 
 						[&](message::unicast& msg) {
-							const auto& target = this->clients[
-								this->catalogue.at(msg.target)
-							];
+							const auto target = this->catalogue.find(msg.target);
 
-							target.send(
+							if (target == this->catalogue.end()) {
+								client->send(
+									tp3::client::message::invalid_name()
+								);
+
+								return;
+							}
+
+							const auto& target_client = this->clients[target->second];
+
+							target_client.send(
 								tp3::client::message::text(
 									boxed_array<uint8_t>(
 										client->name ? *client->name
@@ -203,6 +212,8 @@ namespace tp3::server {
 		}
 
 
+		// Run the server's event loop.
+		// This function does not return (infinite loop), but it may throw exceptions.
 		void process() {
 			while (true) {
 				if (this->poll() < 0)
