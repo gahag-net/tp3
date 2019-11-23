@@ -48,15 +48,13 @@ namespace tp3::server {
 		server(server&&) noexcept = default;
 
 		server(tp3::socket::addr&& address, uint32_t queue_size = 32)
-			: socket(std::move(address), queue_size)
-		{
-			this->poll_sockets.emplace_back(
-				pollfd {
-					.fd = this->socket.descriptor(),
-					.events = POLLIN
-				}
-			);
-		}
+			: socket(std::move(address), queue_size),
+			  poll_sockets {
+			  	pollfd {
+			  		.fd = this->socket.descriptor(),
+			  		.events = POLLIN
+			  	}
+			  } { }
 
 
 		// Get a client iterator from a sockets iterator.
@@ -150,9 +148,12 @@ namespace tp3::server {
 								return;
 							}
 
+							if (auto& name = client->name)
+								this->catalogue.erase(*name);
+
 							client->name = std::move(msg.text);
 
-							this->catalogue[*client->name] = this->clients.size() - 1;
+							this->catalogue[*client->name] = client - this->clients.begin();
 
 							std::cout << "done." << std::endl;
 						},
