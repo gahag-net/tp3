@@ -24,6 +24,9 @@ tp3::socket::connection::connection(const server& server)
 
 
 tp3::socket::connection::~connection() {
+	if (this->deleted())
+		return;
+
 	if (::shutdown(this->fd, SHUT_RDWR) < 0)
 		std::cerr << "Failed to close connection (fd = " << this->fd << "):"
 		          << std::endl
@@ -41,9 +44,6 @@ bool tp3::socket::connection::is_closed() const {
 		1,
 		MSG_PEEK
 	);
-
-	if (size < 0)
-		throw std::system_error(errno, std::generic_category());
 
 	return size == 0;
 }
