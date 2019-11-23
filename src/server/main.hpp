@@ -19,4 +19,6 @@ namespace tp3::server::main {
 	int interrupted();
 	int exception(const std::exception&);
 	int sys_error(const std::system_error&);
+
+	int main(int argc, char* argv[]);
 }
