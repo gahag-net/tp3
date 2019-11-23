@@ -4,6 +4,9 @@
 
 
 namespace tp3::util::algorithm {
+	// Swap and pop algorithm.
+	// If container.size() > 1, container.end() and container.end() - 1 are invalidated.
+	// Otherwise, all iterators are invalidated.
 	template<typename Container>
 	void swap_pop(Container& container, typename Container::iterator it) {
 		if (container.size() < 2) {

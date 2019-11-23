@@ -10,15 +10,16 @@
 #include <util/overload.hpp>
 
 
+// Messages received by the server.
 namespace tp3::server::message {
 	enum class token : uint8_t {
-		name = 0x84,			 // Index character
-		list_users = 0x05, // Enquiry character
-		broadcast = 0x02,  // Start of text character
-		unicast = 0x9E,    // Private message character
-		heading = 0x01,    // Start of heading character
-		end = 0x04,        // End of transmission character
-		text = 0x02        // Start of text character
+		name = 0x84,			 // Index character.
+		list_users = 0x05, // Enquiry character.
+		broadcast = 0x02,  // Start of text character.
+		unicast = 0x9E,    // Private message character.
+		heading = 0x01,    // Start of heading character.
+		end = 0x04,        // End of transmission character.
+		text = 0x02        // Start of text character.
 	};
 
 	constexpr auto token_value(token tok) noexcept {
@@ -32,6 +33,7 @@ namespace tp3::server::message {
 	using boxed_array = tp3::util::boxed_array<T>;
 
 
+	// Set name message.
 	class name {
 	public:
 		static constexpr std::size_t min_size = 3; // minimum message size.

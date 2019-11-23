@@ -16,6 +16,7 @@
 
 
 namespace tp3::server {
+	// A client in the server.
 	template<std::size_t buffer_size>
 	class client {
 		static_assert(buffer_size >= message::min_size);
@@ -32,7 +33,7 @@ namespace tp3::server {
 	public:
 		static const inline boxed_array<uint8_t> anon_name = boxed_array<uint8_t>("anonymous");
 
-		std::optional<boxed_array<uint8_t>> name;
+		std::optional<boxed_array<uint8_t>> name; // A client might be anonymous.
 
 
 		client(tp3::socket::connection&& connection)
@@ -65,11 +66,11 @@ namespace tp3::server {
 
 
 		void send(tp3::client::message::variant&& message) const {
-			auto packet = tp3::client::message::encode(
-				std::move(message)
+			this->send(
+				tp3::client::message::encode(
+					std::move(message)
+				)
 			);
-
-			this->send(packet);
 		}
 
 		void send(const boxed_array<uint8_t>& packet) const {

@@ -10,23 +10,41 @@
 
 
 namespace tp3::util {
+	// A dynamic, fixed sized array.
 	template<typename T>
 	class boxed_array {
 	protected:
 		std::unique_ptr<T[]> data;
-		std::size_t _size; // this should only be changed when moving.
+		std::size_t _size; // The size is fixed, should only be changed when moving.
 
 	public:
+		// Construct empty array.
 		boxed_array() noexcept
 			: _size(0),
 			  data() { }
 
+		// Construct `size` default initialized elements.
 		boxed_array(std::size_t size)
 			: _size(size),
 			  data(
 			  	std::make_unique<T[]>(size)
 			  ) { }
 
+		// Construct from an iterator.
+		template<typename ForwardIterator>
+		boxed_array(ForwardIterator begin, ForwardIterator end)
+			: boxed_array(
+			  	std::distance(begin, end)
+			  )
+		{
+			std::copy(
+				begin,
+				end,
+				this->get()
+			);
+		}
+
+		// Construct from a static string, only enabled when T ~ char.
 		template<
 			typename Char = std::enable_if_t<
 				std::is_same<
@@ -48,19 +66,7 @@ namespace tp3::util {
 			);
 		}
 
-		template<typename ForwardIterator>
-		boxed_array(ForwardIterator begin, ForwardIterator end)
-			: boxed_array(
-			  	std::distance(begin, end)
-			  )
-		{
-			std::copy(
-				begin,
-				end,
-				this->get()
-			);
-		}
-
+		// Copy constructor.
 		boxed_array(const boxed_array& other) {
 			this->_size = other._size;
 			this->data = std::make_unique<T[]>(other._size);
@@ -71,8 +77,14 @@ namespace tp3::util {
 				this->get()
 			);
 		}
+		// Move constructor.
 		boxed_array(boxed_array&& other) noexcept = default;
-		boxed_array<T>& operator=(const boxed_array<T>&) = default;
+		// Copy assignment.
+		boxed_array<T>& operator=(const boxed_array<T>& other) {
+			*this = boxed_array(other);
+			return *this;
+		};
+		// Move assignment.
 		boxed_array<T>& operator=(boxed_array<T>&&) = default;
 
 
