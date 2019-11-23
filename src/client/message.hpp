@@ -124,27 +124,26 @@ namespace tp3::client::message {
 
 			ForwardIterator separator;
 
-			auto find_separator = [&] {
-				separator = std::find(begin, end, util::token_value(token::user_sep));
+			auto find_separator = [&](auto token) {
+				separator = std::find(begin, end, util::token_value(token));
 
-				if (separator == end)
-					separator = std::find(begin, end, util::token_value(token::end));
-
-				return separator == end;
+				return separator != end;
 			};
 
 			std::vector<boxed_array<uint8_t>> users;
 
-			while (find_separator()) {
+			while (find_separator(token::user_sep)) {
 				users.emplace_back(begin, separator);
-
 				begin = separator + 1;
 			}
 
-			if (*begin != util::token_value(token::end))
+			if (!find_separator(token::end)) {
+				begin = separator;
 				return {};
+			}
 
-			++begin; // leave begin at the end of the parsed data.
+			users.emplace_back(begin, separator);
+			begin = separator + 1;
 
 			return users_list(
 				std::move(users)
@@ -300,6 +299,8 @@ namespace tp3::client::message {
 
 						*packet_it++ = util::token_value(token::user_sep);
 					}
+
+					packet_it--; // get back before the last user_sep
 
 					*packet_it++ = util::token_value(token::end);
 
