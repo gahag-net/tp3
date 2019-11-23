@@ -142,7 +142,9 @@ namespace tp3::server {
 								          << std::endl;
 
 								client->send(
-									tp3::client::message::invalid_name()
+									tp3::client::message::error(
+										tp3::client::message::error_token::invalid_name
+									)
 								);
 
 								return;
@@ -188,7 +190,9 @@ namespace tp3::server {
 
 							if (target == this->catalogue.end()) {
 								client->send(
-									tp3::client::message::invalid_name()
+									tp3::client::message::error(
+										tp3::client::message::error_token::invalid_target
+									)
 								);
 
 								return;

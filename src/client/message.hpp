@@ -10,63 +10,84 @@
 
 #include <util/boxed_array.hpp>
 #include <util/overload.hpp>
+#include <util/token.hpp>
 
 
 namespace tp3::client::message {
 	enum class token : uint8_t {
-		invalid_name = 0x15, // NAK character
-		users_list = 0x05,   // Enquiry character
-		text = 0x9E,         // Private message character
-		heading = 0x01,      // Start of heading character
-		end = 0x04,          // End of transmission character
-		user_sep = 0x1F,     // Unit separator character
-		text_start = 0x02    // Start of text character
+		error = 0x15,          // NAK character
+		users_list = 0x05,     // Enquiry character
+		text = 0x9E,           // Private message character
+		heading = 0x01,        // Start of heading character
+		end = 0x04,            // End of transmission character
+		user_sep = 0x1F,       // Unit separator character
+		text_start = 0x02      // Start of text character
 	};
 
-	constexpr auto token_value(token tok) noexcept {
-		return static_cast<
-			typename std::underlying_type<token>::type
-		>(tok);
-	}
+	enum class error_token : uint8_t {
+		invalid_name = 0x01,
+		invalid_target = 0x02
+	};
 
 
 	template<typename T>
 	using boxed_array = tp3::util::boxed_array<T>;
 
 
-	class invalid_name {
+	class error {
 	public:
-		static constexpr std::size_t min_size = 3; // minimum message size.
+		static constexpr std::size_t min_size = 4; // minimum message size.
 
-		invalid_name(const invalid_name&) = delete;
-		invalid_name(invalid_name&& other) noexcept = default;
-		invalid_name() noexcept = default;
+		error_token token;
 
-		invalid_name& operator=(const invalid_name&) = delete;
-		invalid_name& operator=(invalid_name&&) = default;
+		error(const error&) = delete;
+		error(error&& other) noexcept = default;
+		error(error_token token) noexcept
+			:token(token) { }
+
+		error& operator=(const error&) = delete;
+		error& operator=(error&&) = default;
 
 
 		template<typename ForwardIterator>
-		static std::optional<invalid_name> decode(ForwardIterator& begin, ForwardIterator end) {
-			if (std::distance(begin, end) < invalid_name::min_size)
+		static std::optional<error> decode(ForwardIterator& begin, ForwardIterator end) {
+			if (std::distance(begin, end) < error::min_size)
 				return {};
 
-			if (*begin != token_value(token::heading))
-				return {};
-
-			++begin;
-
-			if (*begin != token_value(token::invalid_name))
+			if (*begin != util::token_value(token::heading))
 				return {};
 
 			++begin;
 
-			if (*begin != token_value(token::end))
+			if (*begin != util::token_value(token::error))
+				return {};
+
+			++begin;
+
+			const auto errors = {
+				error_token::invalid_name,
+				error_token::invalid_target
+			};
+
+			auto err = std::find_if(
+				errors.begin(),
+				errors.end(),
+				[&](error_token token) {
+					return *begin == util::token_value(token);
+				}
+			);
+
+			if (err == errors.end())
+				return {};
+
+			++begin;
+
+			if (*begin != util::token_value(token::end))
 				return {};
 
 			++begin; // leave begin at the end of the parsed data.
 
-			return invalid_name();
+			return error(*err);
 		}
 	};
 
@@ -91,12 +112,12 @@ namespace tp3::client::message {
 			if (std::distance(begin, end) < users_list::min_size)
 				return {};
 
-			if (*begin != token_value(token::heading))
+			if (*begin != util::token_value(token::heading))
 				return {};
 
 			++begin;
 
-			if (*begin != token_value(token::users_list))
+			if (*begin != util::token_value(token::users_list))
 				return {};
 
 			++begin;
@@ -104,10 +125,10 @@ namespace tp3::client::message {
 			ForwardIterator separator;
 
 			auto find_separator = [&] {
-				separator = std::find(begin, end, token_value(token::user_sep));
+				separator = std::find(begin, end, util::token_value(token::user_sep));
 
 				if (separator == end)
-					separator = std::find(begin, end, token_value(token::end));
+					separator = std::find(begin, end, util::token_value(token::end));
 
 				return separator == end;
 			};
@@ -120,7 +141,7 @@ namespace tp3::client::message {
 				begin = separator + 1;
 			}
 
-			if (*begin != token_value(token::end))
+			if (*begin != util::token_value(token::end))
 				return {};
 
 			++begin; // leave begin at the end of the parsed data.
@@ -154,12 +175,12 @@ namespace tp3::client::message {
 			if (std::distance(begin, end) < text::min_size)
 				return {};
 
-			if (*begin != token_value(token::heading))
+			if (*begin != util::token_value(token::heading))
 				return {};
 
 			++begin;
 
-			if (*begin != token_value(token::text))
+			if (*begin != util::token_value(token::text))
 				return {};
 
 			const auto sender = begin + 1;
@@ -167,7 +188,7 @@ namespace tp3::client::message {
 			const auto sender_end = std::find(
 				sender,
 				end,
-				token_value(token::text_start)
+				util::token_value(token::text_start)
 			);
 
 			if (sender_end == end)
@@ -178,7 +199,7 @@ namespace tp3::client::message {
 			const auto body_end = std::find(
 				body,
 				end,
-				token_value(token::end)
+				util::token_value(token::end)
 			);
 
 			if (body_end == end)
@@ -196,7 +217,7 @@ namespace tp3::client::message {
 
 	static constexpr std::size_t min_size = [] { // minimum message size.
 		const auto messages = {
-			invalid_name::min_size,
+			error::min_size,
 			users_list::min_size,
 			text::min_size
 		};
@@ -208,7 +229,7 @@ namespace tp3::client::message {
 	}();
 
 	using variant = std::variant<
-		invalid_name,
+		error,
 		users_list,
 		text
 	>;
@@ -218,7 +239,7 @@ namespace tp3::client::message {
 	std::optional<variant> decode(ForwardIterator& begin, ForwardIterator end) {
 		const ForwardIterator _begin = begin;
 
-		if (auto message = invalid_name::decode(begin, end))
+		if (auto message = error::decode(begin, end))
 			return std::move(*message);
 
 		begin = _begin; // rollback
@@ -238,16 +259,17 @@ namespace tp3::client::message {
 	boxed_array<uint8_t> encode(variant&& message) {
 		return std::visit(
 			tp3::util::overload {
-				[](const invalid_name& msg) -> boxed_array<uint8_t> {
-					const std::size_t size = 3; // heading + invalid_name + end
+				[](const error& msg) -> boxed_array<uint8_t> {
+					const std::size_t size = 4; // heading + error + code + end
 
 					boxed_array<uint8_t> packet(size);
 
 					auto packet_it = packet.begin();
 
-					*packet_it++ = token_value(token::heading);
-					*packet_it++ = token_value(token::invalid_name);
-					*packet_it++ = token_value(token::end);
+					*packet_it++ = util::token_value(token::heading);
+					*packet_it++ = util::token_value(token::error);
+					*packet_it++ = util::token_value(msg.token);
+					*packet_it++ = util::token_value(token::end);
 
 					return packet;
 				},
@@ -266,8 +288,8 @@ namespace tp3::client::message {
 
 					auto packet_it = packet.begin();
 
-					*packet_it++ = token_value(token::heading);
-					*packet_it++ = token_value(token::users_list);
+					*packet_it++ = util::token_value(token::heading);
+					*packet_it++ = util::token_value(token::users_list);
 
 					for (const auto& user : msg.users) {
 						packet_it = std::copy(
@@ -276,10 +298,10 @@ namespace tp3::client::message {
 							packet_it
 						);
 
-						*packet_it++ = token_value(token::user_sep);
+						*packet_it++ = util::token_value(token::user_sep);
 					}
 
-					*packet_it++ = token_value(token::end);
+					*packet_it++ = util::token_value(token::end);
 
 					return packet;
 				},
@@ -293,8 +315,8 @@ namespace tp3::client::message {
 
 					auto packet_it = packet.begin();
 
-					*packet_it++ = token_value(token::heading);
-					*packet_it++ = token_value(token::text);
+					*packet_it++ = util::token_value(token::heading);
+					*packet_it++ = util::token_value(token::text);
 
 					packet_it = std::copy(
 						msg.sender.begin(),
@@ -302,7 +324,7 @@ namespace tp3::client::message {
 						packet_it
 					);
 
-					*packet_it++ = token_value(token::text_start);
+					*packet_it++ = util::token_value(token::text_start);
 
 					packet_it = std::copy(
 						msg.body.begin(),
@@ -310,7 +332,7 @@ namespace tp3::client::message {
 						packet_it
 					);
 
-					*packet_it++ = token_value(token::end);
+					*packet_it++ = util::token_value(token::end);
 
 					return packet;
 				}
