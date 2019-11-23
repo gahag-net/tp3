@@ -12,6 +12,7 @@
 
 namespace tp3::server::message {
 	enum class token : uint8_t {
+		name = 0x84,			 // Index character
 		list_users = 0x05, // Enquiry character
 		broadcast = 0x02,  // Start of text character
 		unicast = 0x9E,    // Private message character
@@ -29,6 +30,55 @@ namespace tp3::server::message {
 
 	template<typename T>
 	using boxed_array = tp3::util::boxed_array<T>;
+
+
+	class name {
+	public:
+		static constexpr std::size_t min_size = 3; // minimum message size.
+
+		boxed_array<uint8_t> text;
+
+
+		name(const name&) = delete;
+		name(name&& other) noexcept = default;
+		name(boxed_array<uint8_t>&& text)
+			: text(std::move(text)) { }
+
+		name& operator=(const name&) = delete;
+		name& operator=(name&&) = default;
+
+
+		template<typename ForwardIterator>
+		static std::optional<name> decode(ForwardIterator& begin, ForwardIterator end) {
+			if (std::distance(begin, end) < name::min_size)
+				return {};
+
+			if (*begin != token_value(token::heading))
+				return {};
+
+			++begin;
+
+			if (*begin != token_value(token::name))
+				return {};
+
+			const auto text = begin + 1;
+
+			const auto text_end = std::find(
+				text,
+				end,
+				token_value(token::end)
+			);
+
+			if (text_end == end)
+				return {};
+
+			begin = text_end + 1;  // leave begin at the end of the parsed data.
+
+			return name(
+				boxed_array<uint8_t>(text, text_end)
+			);
+		}
+	};
 
 
 	class list_users {
@@ -181,6 +231,7 @@ namespace tp3::server::message {
 
 	static constexpr std::size_t min_size = [] { // minimum message size.
 		const auto messages = {
+			name::min_size,
 			list_users::min_size,
 			broadcast::min_size,
 			unicast::min_size
@@ -193,6 +244,7 @@ namespace tp3::server::message {
 	}();
 
 	using variant = std::variant<
+		name,
 		list_users,
 		broadcast,
 		unicast
@@ -202,6 +254,11 @@ namespace tp3::server::message {
 	template<typename ForwardIterator>
 	std::optional<variant> decode(ForwardIterator& begin, ForwardIterator end) {
 		const ForwardIterator _begin = begin;
+
+		if (auto message = name::decode(begin, end))
+			return std::move(*message);
+
+		begin = _begin; // rollback
 
 		if (auto message = list_users::decode(begin, end))
 			return std::move(*message);
@@ -223,6 +280,28 @@ namespace tp3::server::message {
 	boxed_array<uint8_t> encode(variant&& message) {
 		return std::visit(
 			tp3::util::overload {
+				[](const name& msg) -> boxed_array<uint8_t> {
+					const std::size_t size = 3 // heading + name + end
+					                       + msg.text.size();
+
+					boxed_array<uint8_t> packet(size);
+
+					auto packet_it = packet.begin();
+
+					*packet_it++ = token_value(token::heading);
+					*packet_it++ = token_value(token::name);
+
+					packet_it = std::copy(
+						msg.text.begin(),
+						msg.text.end(),
+						packet_it
+					);
+
+					*packet_it++ = token_value(token::end);
+
+					return packet;
+				},
+
 				[](const list_users& msg) -> boxed_array<uint8_t> {
 					const std::size_t size = 3; // heading + list_users + end
 
@@ -239,7 +318,7 @@ namespace tp3::server::message {
 
 				[](const broadcast& msg) -> boxed_array<uint8_t> {
 					const std::size_t size = 3 // heading + broadcast + end
-					                 + msg.text.size();
+					                       + msg.text.size();
 
 					boxed_array<uint8_t> packet(size);
 

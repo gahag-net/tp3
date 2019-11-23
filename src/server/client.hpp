@@ -20,31 +20,29 @@ namespace tp3::server {
 	class client {
 		static_assert(buffer_size >= message::min_size);
 
+		template<typename T>
+		using boxed_array = tp3::util::boxed_array<T>;
+
+
 	protected:
 		tp3::socket::connection connection;
 		tp3::util::read_buffer<buffer_size> read_buffer;
 
-		tp3::util::boxed_array<uint8_t> _name;
 
 	public:
+		static const inline boxed_array<uint8_t> anon_name = boxed_array<uint8_t>("anonymous");
+
+		std::optional<boxed_array<uint8_t>> name;
+
+
 		client(tp3::socket::connection&& connection)
-			: connection(std::move(connection)),
-			  _name(9)
-		{
-			// TODO: read client name.
-			std::string batata = "batatinha";
-			std::copy(batata.begin(), batata.end(), this->_name.begin());
-		}
+			: connection(std::move(connection)) { }
 
 		client(const client&) = delete;
 		client(client&&) = default;
 		client& operator=(const client&) = delete;
 		client& operator=(client&&) = default;
 
-
-		const tp3::util::boxed_array<uint8_t>& name() const {
-			return this->_name;
-		}
 
 		int descriptor() const noexcept {
 			return this->connection.descriptor();
@@ -74,7 +72,7 @@ namespace tp3::server {
 			this->send(packet);
 		}
 
-		void send(const tp3::util::boxed_array<uint8_t>& packet) const {
+		void send(const boxed_array<uint8_t>& packet) const {
 			this->connection.send(
 				packet.get(),
 				packet.size()

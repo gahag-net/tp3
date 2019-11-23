@@ -2,11 +2,13 @@
 
 #include <poll.h>
 
+#include <iostream>
 #include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <iterator>
 #include <system_error>
+#include <sstream>
 #include <vector>
 
 #include <socket/server.hpp>
@@ -70,51 +72,88 @@ namespace tp3::server {
 
 			usernames.reserve(
 				this->clients.size()
-				);
-
-			std::transform(
-				this->clients.begin(),
-				this->clients.end(),
-				std::back_inserter(usernames),
-				[](const auto& client) {
-					return boxed_array<uint8_t>(client.name());
-				}
 			);
+
+			std::size_t anonymous = 0;
+
+			for (auto& client : clients)
+				if (auto& name = client.name)
+					usernames.emplace_back(*name);
+				else
+					++anonymous;
+
+			if (anonymous > 0) {
+				std::stringstream stream;
+				stream << "anonymous(" << anonymous << ")";
+
+				auto string = stream.str();
+
+				usernames.emplace_back(
+					string.begin(),
+					string.end()
+				);
+			}
 
 			return usernames;
 		}
 
 
+		int poll() noexcept {
+			return ::poll(
+				this->poll_sockets.data(),
+				this->poll_sockets.size(),
+				-1 // infinite timeout
+			);
+		}
+
+
 		// accept new connection.
 		void accept() {
+			std::cout << "incoming client, ";
+
 			client<buffer_size> client(
 				tp3::socket::connection(this->socket)
 			);
 
-			if (this->catalogue.find(client.name()) != this->catalogue.end()) {
-				// TODO: connection refused, name already in use.
-			}
-			else {
-				this->clients.push_back(std::move(client));
+			auto fd = client.descriptor();
 
-				const auto& client = this->clients.back();
+			this->clients.push_back(std::move(client));
 
-				this->poll_sockets.push_back(
-					pollfd {
-						.fd = client.descriptor(),
-						.events = POLLIN
-					}
-				);
+			this->poll_sockets.push_back(
+				pollfd {
+					.fd = fd,
+					.events = POLLIN
+				}
+			);
 
-				this->catalogue[client.name()] = this->clients.size() - 1;
-			}
+			std::cout << "accepted." << std::endl;
 		}
 
 
-		void process_client(clients_iter client) const {
+		void process_client(clients_iter client) {
 			if (auto message = client->read())
 				std::visit(
 					tp3::util::overload {
+						[&](const message::name& msg) {
+							std::cout << "set name to '" << msg.text << "', ";
+
+							if (this->catalogue.find(msg.text) != this->catalogue.end()) {
+								std::cout << "there is already a client with that name, denying."
+								          << std::endl;
+
+								client->send(
+									tp3::client::message::invalid_name()
+								);
+							}
+							else {
+								client->name = std::move(msg.text);
+
+								this->catalogue[*client->name] = this->clients.size() - 1;
+
+								std::cout << "done." << std::endl;
+							}
+						},
+
 						[&](const message::list_users&) {
 							client->send(
 								tp3::client::message::users_list(
@@ -126,7 +165,10 @@ namespace tp3::server {
 						[&](message::broadcast& msg) {
 							auto packet = tp3::client::message::encode(
 								tp3::client::message::text(
-									boxed_array<uint8_t>(client->name()),
+									boxed_array<uint8_t>(
+										client->name ? *client->name
+										             : tp3::server::client<buffer_size>::anon_name
+									),
 									std::move(msg.text)
 								)
 							);
@@ -147,7 +189,10 @@ namespace tp3::server {
 
 							target.send(
 								tp3::client::message::text(
-									boxed_array<uint8_t>(client->name()),
+									boxed_array<uint8_t>(
+										client->name ? *client->name
+										             : tp3::server::client<buffer_size>::anon_name
+									),
 									std::move(msg.text)
 								)
 							);
@@ -159,39 +204,51 @@ namespace tp3::server {
 
 
 		void process() {
-			constexpr int infinite_timeout = -1;
-
 			while (true) {
-				auto result = ::poll(
-					this->poll_sockets.data(),
-					this->poll_sockets.size(),
-					infinite_timeout
-				);
-
-				if (result < 0)
+				if (this->poll() < 0)
 					throw std::system_error(errno, std::generic_category());
 
+				// handle server socket:
 				auto socket = this->poll_sockets.begin();
+
+				if (socket->revents & POLLIN) { // new client incoming
+					this->accept();
+					// accept inserts in poll_sockets, invalidating all iterators:
+					socket = this->poll_sockets.begin();
+				}
+
+				// handle client connections:
+				++socket;
 				auto end = this->poll_sockets.end();
 
-				if (socket->revents | POLLIN) // new client incoming
-					this->accept();
-
 				while (socket != end) {
-					if (socket->revents | POLLIN) {
+					if (socket->revents & POLLIN) { // incoming message
 						auto client = this->get_client(socket);
 
-						if (!client->connected()) { // client disconnected, remove from list:
-							this->catalogue.erase(client->name());
+						if (client->connected())
+							this->process_client(client);
+						else { // client disconnected, remove from collection:
+							if (auto& name = client->name)
+								this->catalogue.erase(*name);
+
 							tp3::util::algorithm::swap_pop(this->poll_sockets, socket);
 							tp3::util::algorithm::swap_pop(this->clients, client);
 
-							if (!this->clients.empty())
-								// client now refers to the swapped client:
-								this->catalogue[client->name()] = client - this->clients.begin();
+							if (this->clients.empty())
+								// make sure our iterators are not invalid:
+								// if the container is unitary, swap_pop will clear it, invalidating all
+								// iterators. Therefore, we must break from the loop because socket is no
+								// longer valid.
+								break;
+
+							// iterator was invalidated by removing from the vector:
+							end = this->poll_sockets.end();
+
+							// the last client was swapped, therefore we must update its index in the
+							// catalogue.
+							if (auto& name = client->name)
+								this->catalogue[*name] = client - this->clients.begin();
 						}
-						else
-							this->process_client(client);
 					}
 
 					++socket;

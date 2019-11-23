@@ -1,9 +1,12 @@
 #pragma once
 
 #include <algorithm>
-#include <iterator>
 #include <cstddef>
+#include <cstring>
+#include <iostream>
+#include <iterator>
 #include <memory>
+#include <type_traits>
 
 
 namespace tp3::util {
@@ -23,6 +26,27 @@ namespace tp3::util {
 			  data(
 			  	std::make_unique<T[]>(size)
 			  ) { }
+
+		template<
+			typename Char = std::enable_if_t<
+				std::is_same<
+					std::make_unsigned_t<T>,
+					unsigned char
+				>::value,
+				char
+			>
+		>
+		boxed_array(const Char* string)
+			: boxed_array(
+			  	::strlen(string)
+			  )
+		{
+			std::copy(
+				string,
+				string + this->_size,
+				this->get()
+			);
+		}
 
 		template<typename ForwardIterator>
 		boxed_array(ForwardIterator begin, ForwardIterator end)
@@ -135,3 +159,11 @@ struct std::hash<tp3::util::boxed_array<T>> {
 		return seed;
 	}
 };
+
+template<typename T>
+std::ostream& operator<<(std::ostream &o, const tp3::util::boxed_array<T>& array) {
+	for (auto b : array)
+		o << b;
+
+	return o;
+}
