@@ -133,27 +133,33 @@ namespace tp3::server {
 				std::visit(
 					tp3::util::overload {
 						[&](const message::name& msg) {
-							std::cout << "set name to '" << msg.text << "', ";
-
-							if (this->catalogue.find(msg.text) != this->catalogue.end()) {
-								std::cout << "there is already a client with that name, denying."
-								          << std::endl;
-
-								client->send(
-									tp3::client::message::error(
-										tp3::client::message::error_token::invalid_name
-									)
-								);
-
-								return;
-							}
-
 							if (auto& name = client->name)
 								this->catalogue.erase(*name);
 
-							client->name = std::move(msg.text);
+							if (msg.text.size() == 0) {
+								std::cout << "set name to anonymous, ";
+								client->name.reset();
+							}
+							else {
+								std::cout << "set name to '" << msg.text << "', ";
 
-							this->catalogue[*client->name] = client - this->clients.begin();
+								if (this->catalogue.find(msg.text) != this->catalogue.end()) {
+									std::cout << "there is already a client with that name, denying."
+									          << std::endl;
+
+									client->send(
+										tp3::client::message::error(
+											tp3::client::message::error_token::invalid_name
+										)
+									);
+
+									return;
+								}
+
+								client->name = std::move(msg.text);
+
+								this->catalogue[*client->name] = client - this->clients.begin();
+							}
 
 							std::cout << "done." << std::endl;
 						},
