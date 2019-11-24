@@ -1,0 +1,188 @@
+% Created 2019-11-24 Sun 14:30
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{grffile}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{textcomp}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\usepackage{minted}
+\usepackage[margin=2cm]{geometry}
+\usepackage[brazil, ]{babel}
+\setlength{\parindent}{0cm}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\usepackage{enumitem}
+\usepackage[pt-BR]{datetime2}
+\DTMlangsetup{showdayofmonth=false}
+\author{Gabriel Bastos -- 2016058204}
+\date{\today}
+\title{Redes -- TP3}
+\hypersetup{
+ pdfauthor={Gabriel Bastos -- 2016058204},
+ pdftitle={Redes -- TP3},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 26.3 (Org mode 9.2.6)}, 
+ pdflang={Pt_Br}}
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+
+\section{Proposta}
+\label{sec:orgb36fa34}
+Com o objetivo de adquirir experiência e conhecimento em aplicações reais que lidam com
+redes, extendi os requisitos do trabalho de forma a se assemelhar mais com um programa
+real, que lida com diversas condições de rede e usuários sob os quais não se têm
+controle.
+\subsection{Número de clientes}
+\label{sec:orge192b72}
+O número máximo de clientes será sempre limitado pelo número de portas no protocolo de
+rede. Apesar disso, julguei interessante eliminar da aplicação este tipo de restrição.
+Recebendo os clientes de forma dinâmica, é possível conter essa limitação aos recursos
+do sistema, e não no código. Desta forma, o número de clientes simultâneos não deve ser
+limitado por uma constante no programa.
+\subsection{Tamanho das mensagens}
+\label{sec:org6ea8d31}
+O tamanho das mensagens também deve ser dinâmico, de forma a fazer o melhor uso de
+banda e memória. Contudo, uma limitação se faz necessária: para evitar que clientes
+maliciosos possam executar um ataque \emph{DDoS} através de mensagens muito grandes, um
+tamanho máximo deve ser estipulado. Este tamanho deve ser facilmente alterável em tempo
+de compilação, de forma a permitir mensagens maiores, caso necessário.
+\subsection{Mensagens}
+\label{sec:org8e60697}
+Aplicações reais devem ser capazes de lidar, em uma única operação de leitura, com
+múltiplas mensagens consecutivas, bem como mensagens divididas e incompletas. É
+possível que, caso um cliente envie dois pacotes, um sofra atraso e chegue separado. De
+forma semelhante, uma congestão na rede pode fazer com que vários pacotes, mesmo que
+enviados separadamente, cheguem juntos. O servidor deve ser capaz de lidar com tais
+situações, de forma que não ocorra perda de dados.
+\subsection{Nome de usuário}
+\label{sec:orgaa5fbe6}
+Com o objetivo de permitir maior flexibilidade aos clientes, deve ser permitido
+usuários anônimos. Estes usuários não serão capazes de receber mensagens diretas, mas
+participarão de \emph{broadcasts}, e poderão receber a lista de usuários conectados.
+\section{Projeto}
+\label{sec:orgf629313}
+De forma a se obter um melhor aproveitamento dos recursos computacionais, o servidor
+utiliza a chamada de sistema \texttt{poll} para lidar com múltiplos clientes. Optei por essa
+chamada por ser uma versão moderna e robusta da chamada \texttt{select}, indicada na
+especificação original.
+\subsection{Mensagens}
+\label{sec:orgf3bd14f}
+Para permitir mensagens consecutivas, se faz necessária a delimitação destas. Optei
+por utilizar os caracteres de controle da table unicode \footnote{\href{https://en.wikipedia.org/wiki/List\_of\_Unicode\_characters\#Control\_codes}{Unicode control codes}}
+como delimitadores. Os caracteres utilizados são:
+\begin{center}
+\begin{tabular}{ll}
+Caractere & Significado\\
+\hline
+\texttt{SOH} & Start of Heading\\
+\texttt{STX} & Start of Text\\
+\texttt{IND} & Index\\
+\texttt{EOT} & End of transmission\\
+\texttt{ENQ} & Enquiry character\\
+\texttt{NAK} & Negative acknowledge\\
+\texttt{US} & Unit Separator\\
+\texttt{PM} & Private Message\\
+\end{tabular}
+\end{center}
+\subsubsection{Cliente $\rightarrow$ Servidor}
+\label{sec:org063775e}
+\begin{description}
+\item[{Definição de nome:}] Mensagem para definir o nome do usuário. \\
+Um nome vazio indica anonimidade.
+\begin{verbatim}
+SOH IND <name> EOT
+\end{verbatim}
+\item[{Lista de usuários:}] Mensagem para requerer a lista de usuários.
+\begin{verbatim}
+SOH ENQ EOT
+\end{verbatim}
+\item[{\emph{Broadcast}:}] Mensagem de texto para todos usuários conectados.
+\begin{verbatim}
+SOH STX <texto> EOT
+\end{verbatim}
+\item[{\emph{Unicast}:}] Mensagem de texto para um usuário específico.
+\begin{verbatim}
+SOH PM <destinatário> STX <texto> EOT
+\end{verbatim}
+\end{description}
+\subsubsection{Servidor $\rightarrow$ Cliente}
+\label{sec:org56e51bb}
+\begin{description}
+\item[{Erro:}] Mensagem de erro, resposta à uma requisição inválida do cliente.
+\begin{verbatim}
+SOH NAK <código de erro> EOT
+\end{verbatim}
+
+\begin{tabular}{rl}
+Código de erro & Significado\\
+\hline
+0x01 & Nome inválido (em uso)\\
+0x02 & Destinatário inválido\\
+\end{tabular}
+\item[{Lista de usuários:}] Mensagem com a lista de usuários.
+\begin{verbatim}
+SOH ENQ <usuário> US <usuário> US <usuário> ... EOT
+\end{verbatim}
+\item[{Texto:}] Mensagem de texto.
+\begin{verbatim}
+SOH PM <remetente> STX <texto> EOT
+\end{verbatim}
+\end{description}
+\subsection{Destinatário}
+\label{sec:orgd78be13}
+Para a identificação rápida do destinatário em mensagens \emph{unicast}, um índice de clientes
+foi implementado. Desta forma, não é necessário buscar na coleção de clientes o alvo
+da mensagem.
+\section{Comandos}
+\label{sec:org91bcaeb}
+\subsection{Desconectar}
+\label{sec:orgd1b5042}
+Comando:
+\begin{verbatim}
+exit
+\end{verbatim}
+\subsection{Nome de usuário}
+\label{sec:orgbccc360}
+Ao entrar no servidor, o usuário é inicialmente anônimo. Seu nome pode ser alterado a
+qualquer momento, quantas vezes desejar.
+
+Comando:
+\begin{verbatim}
+name;<nome>
+\end{verbatim}
+
+Para retornar à anonimidade:
+\begin{verbatim}
+name;
+\end{verbatim}
+\subsection{Listar usuários}
+\label{sec:org7f06a73}
+Comando:
+\begin{verbatim}
+users
+\end{verbatim}
+\subsection{Mensagem \emph{broadcast}:}
+\label{sec:orgac04490}
+Comando:
+\begin{verbatim}
+all;<mensagem>
+\end{verbatim}
+\subsection{Mensagem \emph{unicast}:}
+\label{sec:org96fdd29}
+Comando:
+\begin{verbatim}
+uni;<destinatário>;<mensagem>
+\end{verbatim}
+\end{document}

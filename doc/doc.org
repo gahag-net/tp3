@@ -1,0 +1,115 @@
+# -*- after-save-hook: org-latex-export-to-pdf; -*-
+#+latex_header: \usepackage[margin=2cm]{geometry}
+#+latex_header: \usepackage[brazil]{babel}
+#+latex_header: \setlength{\parindent}{0cm}
+#+latex_header: \hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+#+latex_header: \usepackage{enumitem}
+#+latex_header: \usepackage[pt-BR]{datetime2}
+#+latex_header: \DTMlangsetup{showdayofmonth=false}
+
+#+title: Redes -- TP3
+#+author: Gabriel Bastos -- 2016058204
+#+options: toc:t
+#+language: pt_BR
+
+* Proposta
+  Com o objetivo de adquirir experiência e conhecimento em aplicações reais que lidam com
+  redes, extendi os requisitos do trabalho de forma a se assemelhar mais com um programa
+  real, que lida com diversas condições de rede e usuários sob os quais não se têm
+  controle.
+** Número de clientes
+   O número máximo de clientes será sempre limitado pelo número de portas no protocolo de
+   rede. Apesar disso, julguei interessante eliminar da aplicação este tipo de restrição.
+   Recebendo os clientes de forma dinâmica, é possível conter essa limitação aos recursos
+   do sistema, e não no código. Desta forma, o número de clientes simultâneos não deve ser
+   limitado por uma constante no programa.
+** Tamanho das mensagens
+   O tamanho das mensagens também deve ser dinâmico, de forma a fazer o melhor uso de
+   banda e memória. Contudo, uma limitação se faz necessária: para evitar que clientes
+   maliciosos possam executar um ataque /DDoS/ através de mensagens muito grandes, um
+   tamanho máximo deve ser estipulado. Este tamanho deve ser facilmente alterável em tempo
+   de compilação, de forma a permitir mensagens maiores, caso necessário.
+** Mensagens
+   Aplicações reais devem ser capazes de lidar, em uma única operação de leitura, com
+   múltiplas mensagens consecutivas, bem como mensagens divididas e incompletas. É
+   possível que, caso um cliente envie dois pacotes, um sofra atraso e chegue separado. De
+   forma semelhante, uma congestão na rede pode fazer com que vários pacotes, mesmo que
+   enviados separadamente, cheguem juntos. O servidor deve ser capaz de lidar com tais
+   situações, de forma que não ocorra perda de dados.
+** Nome de usuário
+   Com o objetivo de permitir maior flexibilidade aos clientes, deve ser permitido
+   usuários anônimos. Estes usuários não serão capazes de receber mensagens diretas, mas
+   participarão de /broadcasts/, e poderão receber a lista de usuários conectados.
+* Projeto
+  De forma a se obter um melhor aproveitamento dos recursos computacionais, o servidor
+  utiliza a chamada de sistema ~poll~ para lidar com múltiplos clientes. Optei por essa
+  chamada por ser uma versão moderna e robusta da chamada ~select~, indicada na
+  especificação original.
+** Mensagens
+   Para permitir mensagens consecutivas, se faz necessária a delimitação destas. Optei
+   por utilizar os caracteres de controle da table unicode [fn::[[https://en.wikipedia.org/wiki/List_of_Unicode_characters#Control_codes][Unicode control codes]]]
+   como delimitadores. Os caracteres utilizados são:
+   | Caractere | Significado          |
+   |-----------+----------------------|
+   | =SOH=       | Start of Heading     |
+   | =STX=       | Start of Text        |
+   | =IND=       | Index                |
+   | =EOT=       | End of transmission  |
+   | =ENQ=       | Enquiry character    |
+   | =NAK=       | Negative acknowledge |
+   | =US=        | Unit Separator       |
+   | =PM=        | Private Message      |
+*** Cliente @@latex:$\rightarrow$@@ Servidor
+    - Definição de nome: ::
+         Mensagem para definir o nome do usuário. \\
+         Um nome vazio indica anonimidade.
+         : SOH IND <name> EOT
+    - Lista de usuários: ::
+         Mensagem para requerer a lista de usuários.
+         : SOH ENQ EOT
+    - /Broadcast/: ::
+         Mensagem de texto para todos usuários conectados.
+         : SOH STX <texto> EOT
+    - /Unicast/: :: 
+         Mensagem de texto para um usuário específico.
+         : SOH PM <destinatário> STX <texto> EOT
+*** Servidor @@latex:$\rightarrow$@@ Cliente
+    - Erro: ::
+         Mensagem de erro, resposta à uma requisição inválida do cliente.
+         : SOH NAK <código de erro> EOT
+         #+attr_latex: :center nil
+         | Código de erro | Significado            |
+         |----------------+------------------------|
+         |           0x01 | Nome inválido (em uso) |
+         |           0x02 | Destinatário inválido  |
+    - Lista de usuários: ::
+         Mensagem com a lista de usuários.
+         : SOH ENQ <usuário> US <usuário> US <usuário> ... EOT
+    - Texto: :: 
+         Mensagem de texto.
+         : SOH PM <remetente> STX <texto> EOT
+** Destinatário
+   Para a identificação rápida do destinatário em mensagens /unicast/, um índice de clientes
+   foi implementado. Desta forma, não é necessário buscar na coleção de clientes o alvo
+   da mensagem.
+* Comandos
+** Desconectar
+   Comando:
+   : exit
+** Nome de usuário
+   Ao entrar no servidor, o usuário é inicialmente anônimo. Seu nome pode ser alterado a
+   qualquer momento, quantas vezes desejar.
+
+   Comando:
+   : name;<nome>
+   Para retornar à anonimidade:
+   : name;
+** Listar usuários
+   Comando:
+   : users
+** Mensagem /broadcast/:
+   Comando:
+   : all;<mensagem>
+** Mensagem /unicast/:
+   Comando:
+   : uni;<destinatário>;<mensagem>
