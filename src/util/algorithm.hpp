@@ -14,7 +14,11 @@ namespace tp3::util::algorithm {
 			return;
 		}
 
-		std::iter_swap(it, container.end() - 1);
+		auto last = container.end() - 1;
+
+		if (it != last)
+			std::iter_swap(it, last);
+
 		container.pop_back();
 	}
 }

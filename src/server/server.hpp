@@ -250,18 +250,23 @@ namespace tp3::server {
 							tp3::util::algorithm::swap_pop(this->poll_sockets, socket);
 							tp3::util::algorithm::swap_pop(this->clients, client);
 
+							// make sure our iterators are not invalid:
 							if (this->clients.empty())
-								// make sure our iterators are not invalid:
 								// if the container is unitary, swap_pop will clear it, invalidating all
 								// iterators. Therefore, we must break from the loop because socket is no
 								// longer valid.
+								break;
+
+							if (socket + 1 == end)
+								// socket was the last element, invalidated by pop_back.
 								break;
 
 							// iterator was invalidated by removing from the vector:
 							end = this->poll_sockets.end();
 
 							// the last client was swapped, therefore we must update its index in the
-							// catalogue.
+							// catalogue. Note that this should not be done if socket is the last
+							// element, as swap_pop won't swap in such case.
 							if (auto& name = client->name)
 								this->catalogue[*name] = client - this->clients.begin();
 						}
