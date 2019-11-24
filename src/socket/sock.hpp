@@ -8,17 +8,17 @@ namespace tp3::socket {
 	class sock {
 	protected:
 		int fd; // The socket's file descriptor, or -1 when deleted.
-		addr addr;
+		addr _address;
 
 		sock(int fd);
-		sock(int fd, class addr&& addr);
+		sock(int fd, addr&& address);
 
 		bool deleted() const noexcept;
 
 	public:
 		// Construct with an attach function.
 		// The function is called right after construction to attach this socket.
-		sock(class addr&&, int (&attach)(const sock&));
+		sock(addr&&, int (&attach)(const sock&));
 		sock(const sock&) = delete;
 		sock(sock&&);
 		~sock();
@@ -27,7 +27,7 @@ namespace tp3::socket {
 		sock& operator=(sock&&);
 
 		int descriptor() const noexcept;
-		const class addr& address() const noexcept;
+		const addr& address() const noexcept;
 
 		bool is_tcp() const noexcept;
 		bool is_udp() const noexcept;

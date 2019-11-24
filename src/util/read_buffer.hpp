@@ -42,7 +42,7 @@ namespace tp3::util {
 
 
 	public:
-		using parser_iter = decltype(buffer)::iterator;
+		using parser_iter = typename decltype(buffer)::iterator;
 
 
 		read_buffer(const read_buffer&) = delete;

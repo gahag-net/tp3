@@ -10,16 +10,16 @@
 #include <unistd.h>
 
 
-tp3::socket::sock::sock(const int fd) : fd(fd), addr(fd) {
+tp3::socket::sock::sock(const int fd) : fd(fd), _address(fd) {
 	if (fd < 0)
 		throw std::system_error(errno, std::generic_category());
 }
 
 tp3::socket::sock::sock(
 	const int fd,
-	tp3::socket::addr&& addr
+	tp3::socket::addr&& address
 ) : fd(fd),
-		addr(std::move(addr))
+		_address(std::move(address))
 {
 	if (fd < 0)
 		throw std::system_error(errno, std::generic_category());
@@ -38,7 +38,7 @@ tp3::socket::sock::sock(
 		throw std::system_error(errno, std::generic_category());
 }
 
-tp3::socket::sock::sock(sock&& other) : fd(other.fd), addr(std::move(other.addr)) {
+tp3::socket::sock::sock(sock&& other) : fd(other.fd), _address(std::move(other._address)) {
 	other.fd = -1; // mark other as deleted.
 }
 
@@ -63,7 +63,7 @@ tp3::socket::sock& tp3::socket::sock::operator=(sock&& other) {
 	this->fd = other.fd;
 	other.fd = -1; // mark other as deleted.
 
-	this->addr = std::move(other.addr);
+	this->_address = std::move(other._address);
 
 	return *this;
 }
@@ -79,16 +79,16 @@ int tp3::socket::sock::descriptor() const noexcept {
 }
 
 const tp3::socket::addr& tp3::socket::sock::address() const noexcept {
-	return this->addr;
+	return this->_address;
 }
 
 
 bool tp3::socket::sock::is_tcp() const noexcept {
-	return this->addr->ai_socktype == SOCK_STREAM;
+	return this->_address->ai_socktype == SOCK_STREAM;
 }
 
 bool tp3::socket::sock::is_udp() const noexcept {
-	return this->addr->ai_socktype == SOCK_DGRAM;
+	return this->_address->ai_socktype == SOCK_DGRAM;
 }
 
 

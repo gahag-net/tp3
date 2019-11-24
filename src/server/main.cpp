@@ -33,14 +33,13 @@ namespace tp3::server::main {
 
 
 	void sig_handler(int signal, void (*handler)(int)) {
-		struct sigaction a = {
-			.sa_handler = handler,
-		};
+		struct sigaction action;
+		action.sa_handler = handler;
 
-		if (sigemptyset(&a.sa_mask) != 0)
+		if (::sigemptyset(&action.sa_mask) != 0)
 			throw std::system_error(errno, std::generic_category());
 
-		if (sigaction(signal, &a, nullptr) != 0)
+		if (::sigaction(signal, &action, nullptr) != 0)
 			throw std::system_error(errno, std::generic_category());
 	}
 
