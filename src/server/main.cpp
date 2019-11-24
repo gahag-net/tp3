@@ -15,7 +15,7 @@
 namespace tp3::server::main {
 	args parse_args(int argc, char** argv) {
 		if (argc < 2) {
-			std::cerr << "Missing port argument";
+			std::cerr << "Missing port argument" << std::endl;
 			std::cerr << "Usage: " << argv[0] << " <port>" << std::endl;
 			::exit(1);
 		}
