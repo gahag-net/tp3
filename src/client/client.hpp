@@ -64,15 +64,6 @@ namespace tp3::client {
 		}
 
 
-		std::string getline() {
-			std::string input;
-
-			std::getline(std::cin, input);
-
-			return input;
-		}
-
-
 		std::optional<tp3::server::message::variant> parse(const std::string& input) {
 			if (input == "users")
 				return tp3::server::message::list_users();
@@ -158,6 +149,8 @@ namespace tp3::client {
 
 
 		void process() {
+			std::string input;
+
 			while (true) {
 				if (this->poll() < 0)
 					throw std::system_error(errno, std::generic_category());
@@ -165,10 +158,17 @@ namespace tp3::client {
 				auto& stdin = this->poll_files.front();
 
 				if (stdin.revents & POLLIN) {
-					auto input = this->getline();
+					input.clear();
+
+					if (!std::getline(std::cin, input)) {
+						if (std::cin.bad())
+							std::cerr << "input error!" << std::endl;
+
+						return;
+					}
 
 					if (input == "exit")
-						break;
+						return;
 
 					if (auto message = this->parse(input))
 						this->server.send(std::move(*message));
